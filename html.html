@@ -1,0 +1,243 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2j's Shopy</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="header">
+    <h1>2j's Shopy</h1>
+    <div class="header-actions">
+      <input type="text" placeholder="Search products..." />
+      <button id="themeToggle">🌙</button>
+      <button id="openAuth">Sign In</button>
+      <div class="cart" onclick="showSection('checkout')">🛒 <span id="cartCount">0</span></div>
+    </div>
+  </header>
+
+  <nav class="nav">
+    <button onclick="showSection('shop')">Shop</button>
+    <button onclick="showSection('checkout')">Checkout</button>
+    <button onclick="showSection('orders')">Orders</button>
+    <button onclick="showSection('admin')">Admin</button>
+  </nav>
+
+  <main class="container">
+    <!-- SHOP -->
+    <section id="shop" class="section active">
+      <div class="products" id="productGrid"></div>
+    </section>
+
+    <!-- CHECKOUT -->
+    <section id="checkout" class="section">
+      <h2>Checkout</h2>
+      <div class="checkout-grid">
+        <div>
+          <div id="checkoutItems"></div>
+        </div>
+        <div class="checkout-summary">
+          <h3>Order Summary</h3>
+          <p>Total Items: <span id="summaryCount">0</span></p>
+          <p>Total Price: $<span id="summaryTotal">0.00</span></p>
+
+          <h4>Payment Details</h4>
+          <input placeholder="Cardholder Name">
+          <input placeholder="Card Number">
+          <input placeholder="MM/YY">
+          <input placeholder="CVV">
+
+          <button class="primary" onclick="placeOrder()">Place Order</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ORDERS -->
+    <section id="orders" class="section">
+      <h2>Order History</h2>
+      <div id="orderList"></div>
+    </section>
+
+    <!-- ADMIN -->
+    <section id="admin" class="section">
+      <h2>Admin Product Editor</h2>
+      <div class="admin-grid">
+        <div>
+          <h3>Add Product</h3>
+          <input id="aName" placeholder="Product Name">
+          <input id="aCat" placeholder="Category">
+          <input id="aPrice" placeholder="Price">
+          <input id="aImg" placeholder="Image URL">
+          <textarea id="aDesc" placeholder="Description"></textarea>
+          <button onclick="addProduct()" class="primary">Add Product</button>
+        </div>
+        <div>
+          <h3>Product List</h3>
+          <div id="adminList"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">© 2026 2j's shopy</footer>
+
+  <!-- PRODUCT MODAL -->
+  <div class="modal" id="productModal">
+    <div class="modal-content large">
+      <button class="close" onclick="closeProduct()">✕</button>
+      <img id="modalImg" />
+      <h2 id="modalTitle"></h2>
+      <p id="modalDesc" class="muted"></p>
+      <div id="modalRating" class="rating"></div>
+      <p class="price" id="modalPrice"></p>
+      <button class="primary" onclick="addToCart(currentProduct)">Add to Cart</button>
+    </div>
+  </div>
+
+<script>
+/* ---------- DATA ---------- */
+let products = [];
+for(let i=1;i<=25;i++){
+  products.push({
+    id:i,
+    name:`Product ${i}`,
+    cat:["Audio","Accessories","Video","Storage"][i%4],
+    price:(10+i*3).toFixed(2),
+    img:`https://picsum.photos/seed/prod${i}/400`,
+    desc:"High quality product with premium features.",
+    rating:(i%5)+1
+  });
+}
+
+let cart = JSON.parse(localStorage.getItem('cart')||"[]");
+let orders = JSON.parse(localStorage.getItem('orders')||"[]");
+let currentProduct=null;
+
+/* ---------- RENDER PRODUCTS ---------- */
+const grid=document.getElementById('productGrid');
+function renderProducts(){
+  grid.innerHTML=products.map(p=>`
+  <div class="card" onclick="openProduct(${p.id})">
+    <img src="${p.img}">
+    <h3>${p.name}</h3>
+    <p class="category">${p.cat}</p>
+    <p class="price">$${p.price}</p>
+    <button onclick="event.stopPropagation();addToCart(${p.id})">Add to Cart</button>
+  </div>`).join('');
+}
+
+/* ---------- CART ---------- */
+function addToCart(id){
+  const item=cart.find(i=>i.id===id);
+  if(item) item.qty++;
+  else cart.push({...products.find(p=>p.id===id),qty:1});
+  saveCart(); renderCart();
+}
+
+function changeQty(id,delta){
+  const item=cart.find(i=>i.id===id);
+  item.qty+=delta;
+  if(item.qty<=0) cart=cart.filter(i=>i.id!==id);
+  saveCart(); renderCart();
+}
+
+function removeItem(id){
+  cart=cart.filter(i=>i.id!==id);
+  saveCart(); renderCart();
+}
+
+function saveCart(){
+  localStorage.setItem('cart',JSON.stringify(cart));
+}
+
+function renderCart(){
+  const items=document.getElementById('checkoutItems');
+  const count=cart.reduce((s,i)=>s+i.qty,0);
+  const total=cart.reduce((s,i)=>s+i.qty*i.price,0);
+  document.getElementById('cartCount').textContent=count;
+  document.getElementById('summaryCount').textContent=count;
+  document.getElementById('summaryTotal').textContent=total.toFixed(2);
+
+  items.innerHTML=cart.map(i=>`
+  <div class="checkout-item">
+    <img src="${i.img}">
+    <div class="grow">
+      <h4>${i.name}</h4>
+      <p>$${i.price}</p>
+      <div class="qty">
+        <button onclick="changeQty(${i.id},-1)">−</button>
+        <span>${i.qty}</span>
+        <button onclick="changeQty(${i.id},1)">+</button>
+        <button onclick="removeItem(${i.id})" class="danger">Remove</button>
+      </div>
+    </div>
+  </div>`).join('');
+}
+
+/* ---------- PRODUCT MODAL ---------- */
+function openProduct(id){
+  currentProduct=id;
+  const p=products.find(x=>x.id===id);
+  modalImg.src=p.img;
+  modalTitle.textContent=p.name;
+  modalDesc.textContent=p.desc;
+  modalPrice.textContent="$"+p.price;
+  modalRating.textContent="★".repeat(p.rating)+"☆".repeat(5-p.rating);
+  productModal.classList.add('open');
+}
+function closeProduct(){productModal.classList.remove('open')}
+
+/* ---------- ORDERS ---------- */
+function placeOrder(){
+  if(!cart.length) return alert('Cart is empty');
+  const total=cart.reduce((s,i)=>s+i.qty*i.price,0);
+  orders.push({date:new Date().toLocaleString(),items:[...cart],total});
+  localStorage.setItem('orders',JSON.stringify(orders));
+  cart=[]; saveCart(); renderCart(); renderOrders();
+  alert('Order placed!');
+}
+
+function renderOrders(){
+  const list=document.getElementById('orderList');
+  list.innerHTML=orders.map(o=>`
+  <div class="order">
+    <h4>${o.date}</h4>
+    <p>${o.items.length} items • $${o.total.toFixed(2)}</p>
+  </div>`).join('');
+}
+
+/* ---------- ADMIN ---------- */
+function addProduct(){
+  const p={
+    id:Date.now(),
+    name:aName.value,cat:aCat.value,price:parseFloat(aPrice.value).toFixed(2),
+    img:aImg.value,desc:aDesc.value,rating:4
+  };
+  products.unshift(p);
+  renderProducts(); renderAdmin();
+}
+
+function renderAdmin(){
+  adminList.innerHTML=products.map(p=>`
+    <div class="admin-item">${p.name} — $${p.price}</div>
+  `).join('');
+}
+
+/* ---------- NAV ---------- */
+function showSection(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+/* ---------- THEME ---------- */
+const prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+if(prefersDark) document.body.classList.add('dark');
+themeToggle.onclick=()=>document.body.classList.toggle('dark');
+
+/* ---------- INIT ---------- */
+renderProducts(); renderCart(); renderOrders(); renderAdmin();
+</script>
+</body>
+</html>
